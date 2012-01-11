@@ -13,6 +13,7 @@
 # 5.4 HashcatMaskFrequencyAgent class
 # 5.5 SymbolFrequencyAgent class
 # 5.6 CharsetPositionAgent class
+# 5.7 YourAgent class
 # 6. Application class
 
 
