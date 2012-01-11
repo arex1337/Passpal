@@ -81,6 +81,7 @@ end
 
 #
 # 4. Extendable Agent class
+# From http://www.metabates.com/2011/02/07/building-interfaces-and-abstract-classes-in-ruby/
 #
 class Agent
   include AbstractInterface
