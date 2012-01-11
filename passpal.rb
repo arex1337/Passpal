@@ -16,6 +16,7 @@
 # 5.7 YourAgent class
 # 6. Application class
 
+PASSPAL_VERSION = '0.2'
 
 #
 # 1. Load libraries
@@ -86,6 +87,10 @@ end
 class Agent
   include AbstractInterface
   attr_accessor :analyzeTime, :reportTime
+  def initialize
+    @analyzeTime = 0
+    @reportTime = 0
+  end
   def analyze(word)
     Agent.api_not_implemented(self)
   end
@@ -96,7 +101,6 @@ class Agent
     start = Time.now
     r = analyze(word)
     stop = Time.now
-    @analyzeTime ||= 0
     @analyzeTime += (stop.to_f - start.to_f)
     r
   end
@@ -104,7 +108,6 @@ class Agent
     start = Time.now
     r = report
     stop = Time.now
-    @reportTime ||= 0
     @reportTime += (stop.to_f - start.to_f)
     r
   end
@@ -129,20 +132,43 @@ class WordFrequencyAgent < Agent
   def report
     @words = Hash[@words.sort_by { |k, v| -v }]
     table = Ruport::Data::Table.new({
-        :data => @words.first(10),
+        :data => @words.first($top.to_i),
         :column_names => %w[Word Count]
       })
     total  = @words.values.sum
     unique = @words.keys.length
     "Total words: \t" + total.to_s +
       "\nUnique words: \t" + unique.to_s + ' (' + ((unique.to_f/total.to_f)*100).round(2).to_s + ' %)' +
-      "\n\nWord frequency, sorted by count, top 10\n" + table.to_s
+      "\n\nWord frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
   end
 end
 
 
 #
-# 5.2 LengthFrequencyAgent
+# 5.2 BaseWordFrequencyAgent
+#
+class BaseWordFrequencyAgent < Agent
+  attr_accessor :words
+  def initialize
+    @words = Hash.new(0)
+  end
+  def analyze(word)
+    word = word.gsub(/^[^a-zA-Z]+/, '').gsub(/[^a-zA-Z]+$/, '')
+    @words[word] += 1 if word.length > 2 
+  end
+  def report
+    @words = Hash[@words.sort_by { |k, v| -v }]
+    table = Ruport::Data::Table.new({
+        :data => @words.first($top.to_i),
+        :column_names => %w[Word Count]
+      })
+      "Base word frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
+  end
+end
+
+
+#
+# 5.3 LengthFrequencyAgent
 #
 class LengthFrequencyAgent < Agent
   attr_accessor :lengths
@@ -164,7 +190,7 @@ end
 
 
 #
-# 5.3 CharsetFrequencyAgent
+# 5.4 CharsetFrequencyAgent
 #
 class CharsetFrequencyAgent < Agent
   attr_accessor :charsets, :results
@@ -211,7 +237,7 @@ end
 
 
 #
-# 5.4 HashcatMaskFrequencyAgent
+# 5.5 HashcatMaskFrequencyAgent
 #
 class HashcatMaskFrequencyAgent < Agent
   def initialize
@@ -253,16 +279,16 @@ class HashcatMaskFrequencyAgent < Agent
         :data => output,
         :column_names => %w[Mask Count Count/keyspace]
       })
-    "Hashcat mask frequency, sorted by count, top 10\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...10).to_s +
+    "Hashcat mask frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s +
       "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s +
-      "\n\nHashcat mask frequency, sorted by count/keyspace, top 10\n" + table.sort_rows_by("Count/keyspace", :order => :descending).sub_table(0...10).to_s +
+      "\n\nHashcat mask frequency, sorted by count/keyspace, top " + $top.to_s + "\n" + table.sort_rows_by("Count/keyspace", :order => :descending).sub_table(0...$top.to_i).to_s +
       "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + "\n"
   end
 end
 
 
 #
-# 5.5 SymbolFrequencyAgent
+# 5.6 SymbolFrequencyAgent
 #
 class SymbolFrequencyAgent < Agent
   attr_accessor :symbols
@@ -282,13 +308,13 @@ class SymbolFrequencyAgent < Agent
         :data => @symbols,
         :column_names => %w[Symbol Count]
       })
-    "Symbol frequency, sorted by count, top 10\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...10).to_s
+    "Symbol frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s
   end
 end
 
 
 #
-# 5.6 CharsetPositionAgent
+# 5.7 CharsetPositionAgent
 #
 class CharsetPositionAgent < Agent
   attr_accessor :result
@@ -346,19 +372,19 @@ end
 
 
 #
-# 5.7 YourAgent
+# 5.8 YourAgent
 #
 =begin
 class YourAgent < Agent
-def initialize
+  def initialize
 
-end
-def analyze(word)
+  end
+  def analyze(word)
 
-end
-def report
-
-end
+  end
+  def report
+    #puts $top
+  end
 end
 =end
 
@@ -379,16 +405,18 @@ class Application
     end
     @possibleAgents = [
       WordFrequencyAgent.new,
+      BaseWordFrequencyAgent.new,
       LengthFrequencyAgent.new,
       CharsetFrequencyAgent.new,
       HashcatMaskFrequencyAgent.new,
       SymbolFrequencyAgent.new,
       CharsetPositionAgent.new,
-      #YourAgent.new
+      #YourAgent.new,
     ]
     @agents = @possibleAgents
     opts = GetoptLong.new(
       ['--help', '-h', '-?', GetoptLong::NO_ARGUMENT],
+      ['--top', '-t', GetoptLong::REQUIRED_ARGUMENT],
       ['--include', '-i', GetoptLong::REQUIRED_ARGUMENT],
       ['--exclude', '-e', GetoptLong::REQUIRED_ARGUMENT],
       ['--profile', '-p', GetoptLong::NO_ARGUMENT]
@@ -399,6 +427,8 @@ class Application
         when '--help'
           display_help
           exit 1
+        when '--top'
+          $top = arg
         when '--include'
           @agents = []
           arg.split(/,/).each do |i|
@@ -413,6 +443,7 @@ class Application
           @profile_flag = true
         end
       end
+      $top ||= 10
     rescue GetoptLong::InvalidOption => e
       puts e
     rescue => e
@@ -424,11 +455,12 @@ class Application
   end
 
   def display_help
-    puts "passpal 0.1, T. Alexander Lystad <tal@lystadonline.no> (www.thepasswordproject.com)
+    puts "passpal "+PASSPAL_VERSION+", T. Alexander Lystad <tal@lystadonline.no> (www.thepasswordproject.com)
 
 Usage on Windows: ruby passpal.rb [switches] filename [> outfile.txt]
 Usage on Linux:   ./passpal.rb [switches] filename [> outfile.txt]
 --help \t\t\t Show help
+--top \t\t\t Show top X results. Defaults to 10. Some reports are always shown in full. Example: --top 20
 --include STRING \t Run these modules, separate with comma. Example: --include 1,3,5
 --exclude STRING \t Run all modules except these, separate with comma. Example: --exclude 6
 --profile \t\t Pretty inaccurate profiling, but should give you an idea what the relative time cost of the modules are
@@ -458,7 +490,7 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
     end
     progress.finish
     #Reporting
-    buffer = "\n\n"
+    buffer = "\n\npasspal "+PASSPAL_VERSION+" report (www.thepasswordproject.com)\n\n"
     progress = ProgressBar.new('Reporting', @agents.size)
     @agents.each do |agent|
       unless agent.nil?
