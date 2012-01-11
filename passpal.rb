@@ -422,9 +422,10 @@ class Application
   end
 
   def display_help
-    puts "passpal 0.1, T. Alexander Lystad <tal@lystadonline.no> (www.lystadonline.no)
+    puts "passpal 0.1, T. Alexander Lystad <tal@lystadonline.no> (www.thepasswordproject.com)
 
-Usage: passpal [switches] ... filename [> outfile.txt]
+Usage on Windows: ruby passpal.rb [switches] filename [> outfile.txt]
+Usage on Linux:   ./passpal.rb [switches] filename [> outfile.txt]
 --help \t\t\t Show help
 --include STRING \t Run these modules, separate with comma. Example: --include 1,3,5
 --exclude STRING \t Run all modules except these, separate with comma. Example: --exclude 6
