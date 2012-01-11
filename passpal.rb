@@ -481,10 +481,12 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
     f.each_line do |line|
       progress.inc(line.bytesize)
       @agents.each do |agent|
-        if @profile_flag && !agent.nil?
-          agent.profile_analyze(line.chomp)
-        else 
-          agent.analyze(line.chomp)
+        unless agent.nil?
+          if @profile_flag
+            agent.profile_analyze(line.chomp)
+          else 
+            agent.analyze(line.chomp)
+          end
         end
       end
     end
