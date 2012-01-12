@@ -130,13 +130,17 @@ class WordFrequencyAgent < Agent
     @words[word] += 1
   end
   def report
-    @words = Hash[@words.sort_by { |k, v| -v }]
-    table = Ruport::Data::Table.new({
-        :data => @words.first($top.to_i),
-        :column_names => %w[Word Count]
-      })
     total  = @words.values.sum
     unique = @words.keys.length
+    @words = Hash[@words.sort_by { |k, v| -v }]
+    output = @words.first($top.to_i)
+    output.each do |array|
+      array << ((array[1].to_f/total)*100).round(4).to_s + ' %'
+    end
+    table = Ruport::Data::Table.new({
+        :data => output,
+        :column_names => ['Word', 'Count', 'Of total']
+      })
     "Total words: \t" + total.to_s +
       "\nUnique words: \t" + unique.to_s + ' (' + ((unique.to_f/total.to_f)*100).round(2).to_s + ' %)' +
       "\n\nWord frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
@@ -151,18 +155,24 @@ class BaseWordFrequencyAgent < Agent
   attr_accessor :words
   def initialize
     @words = Hash.new(0)
+    @total = 0
   end
   def analyze(word)
+    @total += 1
     word = word.gsub(/^[^a-zA-Z]+/, '').gsub(/[^a-zA-Z]+$/, '')
-    @words[word] += 1 if word.length > 2 
+    @words[word] += 1 if word.length >= 3
   end
   def report
     @words = Hash[@words.sort_by { |k, v| -v }]
+    output = @words.first($top.to_i)
+    output.each do |array|
+      array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
+    end
     table = Ruport::Data::Table.new({
-        :data => @words.first($top.to_i),
-        :column_names => %w[Word Count]
+        :data => output,
+        :column_names => ['Word', 'Count', 'Of total']
       })
-      "Base word frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
+      "Base word (len>=3) frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
   end
 end
 
@@ -174,15 +184,20 @@ class LengthFrequencyAgent < Agent
   attr_accessor :lengths
   def initialize
     @lengths = Hash.new(0)
+    @total = 0
   end
   def analyze(word)
     @lengths[word.length] += 1
+    @total += 1
   end
   def report
-    @lengths = Hash[@lengths.sort]
+    output = Hash[@lengths.sort].to_a
+    output.each do |array|
+      array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
+    end
     table = Ruport::Data::Table.new({
-        :data => @lengths,
-        :column_names => %w[Length Count]
+        :data => output,
+        :column_names => ['Length', 'Count', 'Of total']
       })  
     "Length frequency, sorted by length, full table\n" + table.to_s
   end
@@ -213,6 +228,7 @@ class CharsetFrequencyAgent < Agent
       :'lower-upper-numeric-symbolic' => Hash[:pattern => Regexp.new('^[A-Za-z0-9\p{Punct} ]+$'.force_encoding("utf-8"), Regexp::FIXEDENCODING), :characters => 95],
     ]
     @results = Hash.new(0)
+    @total = 0
   end
   def analyze(word)
     @charsets.each do |key, hash|
@@ -220,15 +236,16 @@ class CharsetFrequencyAgent < Agent
         @results[key] += 1
       end
     end
+    @total += 1
   end
   def report
     output = []
     @results.each do |charset, count|
-      output << [charset, count, count.to_f/@charsets[charset][:characters].to_f]
+      output << [charset, count, ((count.to_f/@total)*100).round(4).to_s + ' %', count.to_f/@charsets[charset][:characters]]
     end
     table = Ruport::Data::Table.new({
         :data => output,
-        :column_names => %w[Charset Count Count/keyspace]
+        :column_names => ['Charset', 'Count', 'Of total', 'Count/keyspace']
       })
     "Charset frequency, sorted by count, full table\n" + table.sort_rows_by("Count", :order => :descending).to_s + 
       "\nCharset frequency, sorted by count/keyspace, full table\n" + table.sort_rows_by("Count/keyspace", :order => :descending).to_s
@@ -243,6 +260,7 @@ class HashcatMaskFrequencyAgent < Agent
   def initialize
     @results = Hash.new(0)
     @otherCount = 0
+    @total = 0
   end
   def analyze(word)
     if Regexp.new('^[a-zA-Z0-9\p{Punct} ]+$'.force_encoding('utf-8'), Regexp::FIXEDENCODING).match(word)
@@ -251,6 +269,7 @@ class HashcatMaskFrequencyAgent < Agent
     else
       @otherCount += 1
     end
+    @total += 1
   end
   def report
     output = []
@@ -273,16 +292,16 @@ class HashcatMaskFrequencyAgent < Agent
           realmask += '?s'
         end
       end
-      output << [realmask, count, count.to_f/keyspace.to_f]
+      output << [realmask, count, ((count.to_f/@total)*100).round(4).to_s + ' %', count.to_f/keyspace.to_f]
     end
     table = Ruport::Data::Table.new({
         :data => output,
-        :column_names => %w[Mask Count Count/keyspace]
+        :column_names => ['Mask', 'Count', 'Of total', 'Count/keyspace']
       })
     "Hashcat mask frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s +
-      "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s +
+      "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + ' (' + ((@otherCount.to_f/@total)*100).round(4).to_s + ' %)' +
       "\n\nHashcat mask frequency, sorted by count/keyspace, top " + $top.to_s + "\n" + table.sort_rows_by("Count/keyspace", :order => :descending).sub_table(0...$top.to_i).to_s +
-      "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + "\n"
+      "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + ' (' + ((@otherCount.to_f/@total)*100).round(4).to_s + ' %)' + "\n"
   end
 end
 
@@ -327,46 +346,49 @@ class CharsetPositionAgent < Agent
     }
   end
   def analyze(word)
-    index = 0
-    word.each_char do |char|
-      case char
-      when /[a-z]/
-        @results[:l][index] += 1
-      when /[A-Z]/
-        @results[:u][index] += 1				
-      when /[0-9]/
-        @results[:d][index] += 1
-      when Regexp.new('([\p{Punct} ])'.force_encoding('utf-8'), Regexp::FIXEDENCODING)
-        @results[:s][index] += 1
+    min_length = 6
+    length = word.length
+    if length >= min_length
+      index = 0
+      word.each_char do |char|
+        if index < 3 || index >= length-3
+          if index < 3
+            pos = index
+          elsif index >= length-3
+            pos = -(length-index)
+          end
+          case char
+          when /[a-z]/
+            @results[:l][pos] += 1
+          when /[A-Z]/
+            @results[:u][pos] += 1				
+          when /[0-9]/
+            @results[:d][pos] += 1
+          when Regexp.new('([\p{Punct} ])'.force_encoding('utf-8'), Regexp::FIXEDENCODING)
+            @results[:s][pos] += 1
+          end
+        end
+        index += 1
       end
-      index += 1
     end
   end
   def report
-    @results[:l] = Hash[@results[:l].sort]
-    @results[:u] = Hash[@results[:u].sort]
-    @results[:d] = Hash[@results[:d].sort]
-    @results[:s] = Hash[@results[:s].sort]
-    table_l = Ruport::Data::Table.new({
-        :data => [@results[:l].values.insert(0, 'Count')],
-        :column_names => @results[:l].keys.insert(0, 'Position')
-      })
-    table_u = Ruport::Data::Table.new({
-        :data => [@results[:u].values.insert(0, 'Count')],
-        :column_names => @results[:u].keys.insert(0, 'Position')
-      })
-    table_d = Ruport::Data::Table.new({
-        :data => [@results[:d].values.insert(0, 'Count')],
-        :column_names => @results[:d].keys.insert(0, 'Position')
-      })
-    table_s = Ruport::Data::Table.new({
-        :data => [@results[:s].values.insert(0, 'Count')],
-        :column_names => @results[:s].keys.insert(0, 'Position')
-      })
-    "Position of lowercase characters, sorted by count, full table\n" + table_l.to_s +
-      "\nPosition of uppercase characters, sorted by count, full table\n" + table_u.to_s +
-      "\nPosition of digit characters, sorted by count, full table\n" + table_d.to_s +
-      "\nPosition of symbol characters, sorted by count, full table\n" + table_s.to_s
+    sum_0 = @results[:l][0]+@results[:u][0]+@results[:d][0]+@results[:s][0]
+    sum_1 = @results[:l][1]+@results[:u][1]+@results[:d][1]+@results[:s][1]
+    sum_2 = @results[:l][2]+@results[:u][2]+@results[:d][2]+@results[:s][2]
+    sum_m3 = @results[:l][-3]+@results[:u][-3]+@results[:d][-3]+@results[:s][-3]
+    sum_m2 = @results[:l][-2]+@results[:u][-2]+@results[:d][-2]+@results[:s][-2]
+    sum_m1 = @results[:l][-1]+@results[:u][-1]+@results[:d][-1]+@results[:s][-1]
+    table_f = Ruport::Data::Table.new({
+      :data => [
+        ['lower', ((@results[:l][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:l][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:l][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:l][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:l][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:l][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+        ['upper', ((@results[:u][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:u][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:u][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:u][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:u][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:u][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+        ['digits', ((@results[:d][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:d][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:d][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:d][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:d][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:d][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+        ['symbols', ((@results[:s][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:s][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:s][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:s][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:s][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:s][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+      ],
+      :column_names => ['Type\Index', '0 (first)', 1, 2, -3, -2, '-1 (last)']
+    })
+    "Type distribution of characters in beginning and end of words (len>=6)\n" + table_f.to_s
   end
 end
 
@@ -485,7 +507,7 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
           if @profile_flag
             agent.profile_analyze(line.chomp)
           else 
-            agent.analyze(line.chomp)
+              agent.analyze(line.chomp)
           end
         end
       end
@@ -517,7 +539,6 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
       end
     end
   end
-
 end
 
 a = Application.new()
