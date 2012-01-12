@@ -16,7 +16,7 @@
 # 5.7 YourAgent class
 # 6. Application class
 
-PASSPAL_VERSION = '0.2'
+PASSPAL_VERSION = '0.3'
 
 #
 # 1. Load libraries
