@@ -386,9 +386,9 @@ class CharsetPositionAgent < Agent
         ['digits', ((@results[:d][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:d][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:d][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:d][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:d][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:d][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
         ['symbols', ((@results[:s][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:s][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:s][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:s][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:s][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:s][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
       ],
-      :column_names => ['Type\Index', '0 (first)', 1, 2, -3, -2, '-1 (last)']
+      :column_names => ['Charset\Index', '0 (first)', 1, 2, -3, -2, '-1 (last)']
     })
-    "Type distribution of characters in beginning and end of words (len>=6)\n" + table_f.to_s
+    "Charset distribution of characters in beginning and end of words (len>=6)\n" + table_f.to_s
   end
 end
 
