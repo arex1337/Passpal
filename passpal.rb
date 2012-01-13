@@ -87,15 +87,17 @@ end
 #
 class Agent
   include AbstractInterface
-  attr_accessor :analyzeTime, :reportTime
+  attr_accessor :analyzeTime, :reportTime, :total
   def initialize
     @analyzeTime = 0
     @reportTime = 0
+	@total = 0
   end
   def analyze(word)
     Agent.api_not_implemented(self)
   end
   def super_analyze(word)
+	@total += 1
 	analyze(word)
   end
   def report
@@ -131,25 +133,26 @@ end
 class WordFrequencyAgent < Agent
   attr_accessor :words
   def initialize
+	super
     @words = Hash.new(0)
   end
   def analyze(word)
     @words[word] += 1
   end
   def report
-    total = @words.values.each_value.inject(:+)
+    #total = @words.values.each_value.inject(:+)
     unique = @words.keys.length
     @words = Hash[@words.sort_by { |k, v| -v }]
     output = @words.first($top.to_i)
     output.each do |array|
-      array << ((array[1].to_f/total)*100).round(4).to_s + ' %'
+      array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
     end
     table = Ruport::Data::Table.new({
         :data => output,
         :column_names => ['Word', 'Count', 'Of total']
       })
-    "Total words: \t" + total.to_s +
-      "\nUnique words: \t" + unique.to_s + ' (' + ((unique.to_f/total.to_f)*100).round(2).to_s + ' %)' +
+    "Total words: \t" + @total.to_s +
+      "\nUnique words: \t" + unique.to_s + ' (' + ((unique.to_f/@total.to_f)*100).round(2).to_s + ' %)' +
       "\n\nWord frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
   end
 end
@@ -161,11 +164,10 @@ end
 class BaseWordFrequencyAgent < Agent
   attr_accessor :words
   def initialize
+	super
     @words = Hash.new(0)
-    @total = 0
   end
   def analyze(word)
-    @total += 1
     word = word.gsub(/^[^a-zA-Z]+/, '').gsub(/[^a-zA-Z]+$/, '')
     @words[word] += 1 if word.length >= 3
   end
@@ -190,12 +192,11 @@ end
 class LengthFrequencyAgent < Agent
   attr_accessor :lengths
   def initialize
+	super
     @lengths = Hash.new(0)
-    @total = 0
   end
   def analyze(word)
     @lengths[word.length] += 1
-    @total += 1
   end
   def report
     output = Hash[@lengths.sort].to_a
@@ -217,6 +218,7 @@ end
 class CharsetFrequencyAgent < Agent
   attr_accessor :charsets, :results
   def initialize
+	super
     @charsets = Hash[
       :'lower' => Hash[:pattern => /^[a-z]+$/, :characters => 26],
       :'upper' => Hash[:pattern => /^[A-Z]+$/, :characters => 26],
@@ -235,7 +237,6 @@ class CharsetFrequencyAgent < Agent
       :'lower-upper-numeric-symbolic' => Hash[:pattern => Regexp.new('^[A-Za-z0-9\p{Punct} ]+$'.force_encoding("utf-8"), Regexp::FIXEDENCODING), :characters => 95],
     ]
     @results = Hash.new(0)
-    @total = 0
   end
   def analyze(word)
     @charsets.each do |key, hash|
@@ -243,7 +244,6 @@ class CharsetFrequencyAgent < Agent
         @results[key] += 1
       end
     end
-    @total += 1
   end
   def report
     output = []
@@ -265,9 +265,9 @@ end
 #
 class HashcatMaskFrequencyAgent < Agent
   def initialize
+	super
     @results = Hash.new(0)
     @otherCount = 0
-    @total = 0
   end
   def analyze(word)
     if Regexp.new('^[a-zA-Z0-9\p{Punct} ]+$'.force_encoding('utf-8'), Regexp::FIXEDENCODING).match(word)
@@ -276,7 +276,6 @@ class HashcatMaskFrequencyAgent < Agent
     else
       @otherCount += 1
     end
-    @total += 1
   end
   def report
     output = []
@@ -319,6 +318,7 @@ end
 class SymbolFrequencyAgent < Agent
   attr_accessor :symbols
   def initialize
+	super
     @symbols = Hash.new(0)
   end
   def analyze(word)
@@ -345,6 +345,7 @@ end
 class CharsetPositionAgent < Agent
   attr_accessor :result
   def initialize
+	super
     @results = {
       :l => Hash.new(0),
       :u => Hash.new(0),
@@ -406,13 +407,14 @@ end
 =begin
 class YourAgent < Agent
   def initialize
-
+	super
   end
   def analyze(word)
 
   end
   def report
     #puts $top
+	#puts @total
   end
 end
 =end
