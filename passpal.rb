@@ -18,6 +18,7 @@
 
 PASSPAL_VERSION = '0.3'
 
+
 #
 # 1. Load libraries
 #
@@ -112,7 +113,7 @@ class Agent
     r
   end
   def display_time
-    puts self.class.to_s + " - Analyzing: " + @analyzeTime.round(4).to_s + "s Reporting: " + @reportTime.round(4).to_s + 's'
+    self.class.to_s + " - Analyzing: " + @analyzeTime.round(4).to_s + "s Reporting: " + @reportTime.round(4).to_s + 's'
   end
 end
 
@@ -130,7 +131,7 @@ class WordFrequencyAgent < Agent
     @words[word] += 1
   end
   def report
-    total  = @words.values.sum
+    total = @words.values.each_value.inject(:+)
     unique = @words.keys.length
     @words = Hash[@words.sort_by { |k, v| -v }]
     output = @words.first($top.to_i)
@@ -386,7 +387,7 @@ class CharsetPositionAgent < Agent
         ['digits', ((@results[:d][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:d][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:d][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:d][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:d][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:d][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
         ['symbols', ((@results[:s][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:s][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:s][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:s][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:s][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:s][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
       ],
-      :column_names => ['Charset\Index', '0 (first)', 1, 2, -3, -2, '-1 (last)']
+      :column_names => ['Charset\Index', '0 (first char)', 1, 2, -3, -2, '-1 (last char)']
     })
     "Charset distribution of characters in beginning and end of words (len>=6)\n" + table_f.to_s
   end
@@ -420,6 +421,7 @@ class Application
   attr_accessor :profile_flag
 
   def initialize
+	@output_file = STDOUT
     @profile_flag = false
     if RUBY_VERSION != '1.9.3'
       puts 'Warning: This software has only been tested on Ruby 1.9.3'
@@ -441,7 +443,8 @@ class Application
       ['--top', '-t', GetoptLong::REQUIRED_ARGUMENT],
       ['--include', '-i', GetoptLong::REQUIRED_ARGUMENT],
       ['--exclude', '-e', GetoptLong::REQUIRED_ARGUMENT],
-      ['--profile', '-p', GetoptLong::NO_ARGUMENT]
+      ['--profile', '-p', GetoptLong::NO_ARGUMENT],
+	  ['--outfile', '-o', GetoptLong::REQUIRED_ARGUMENT]
     )
     begin
       opts.each do |opt, arg|
@@ -463,6 +466,8 @@ class Application
           end
         when '--profile'
           @profile_flag = true
+		when '--outfile'
+			@output_file = File.new(arg, "w")
         end
       end
       $top ||= 10
@@ -486,6 +491,7 @@ Usage on Linux:   ./passpal.rb [switches] filename [> outfile.txt]
 --include STRING \t Run these modules, separate with comma. Example: --include 1,3,5
 --exclude STRING \t Run all modules except these, separate with comma. Example: --exclude 6
 --profile \t\t Pretty inaccurate profiling, but should give you an idea what the relative time cost of the modules are
+--outfile filename \t Output to this file
 filename \t\t The file to analyze. Must be UTF-8 encoded.
 
     "
@@ -528,13 +534,13 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
       end
     end
     progress.finish
-    puts buffer
+    @output_file.puts buffer
     #Profiling
     if @profile_flag
-      puts "Inaccurate profiling"
+      @output_file.puts "Inaccurate profiling"
       @agents.each do |agent|
         unless agent.nil?
-          agent.display_time
+          @output_file.puts agent.display_time
         end
       end
     end
