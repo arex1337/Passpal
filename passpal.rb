@@ -95,19 +95,25 @@ class Agent
   def analyze(word)
     Agent.api_not_implemented(self)
   end
+  def super_analyze(word)
+	analyze(word)
+  end
   def report
     Agent.api_not_implemented(self)
   end
+  def super_report
+	report
+  end
   def profile_analyze(word)
     start = Time.now
-    r = analyze(word)
+    r = super_analyze(word)
     stop = Time.now
     @analyzeTime += (stop.to_f - start.to_f)
     r
   end
   def profile_report
     start = Time.now
-    r = report
+    r = super_report
     stop = Time.now
     @reportTime += (stop.to_f - start.to_f)
     r
@@ -513,7 +519,7 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
           if @profile_flag
             agent.profile_analyze(line.chomp)
           else 
-              agent.analyze(line.chomp)
+              agent.super_analyze(line.chomp)
           end
         end
       end
@@ -527,7 +533,7 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
         if @profile_flag
           string = agent.profile_report
         else
-          string = agent.report
+          string = agent.super_report
         end
         buffer += string + "\n\n" unless string.nil?
         progress.inc
