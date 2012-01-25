@@ -554,7 +554,7 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
         end
         progress.finish
         #Report
-        progress = ProgressBar.new('Report #' + (index+1).to_s + '/' + @agents.length.to_s, 1)
+        progress = ProgressBar.new('  Report #' + (index+1).to_s + '/' + @agents.length.to_s, 1)
         if @profile_flag
           string = agent.profile_report
         else
@@ -562,10 +562,14 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
         end
         buffer += string + "\n\n" unless string.nil?
         progress.finish
-        #Profile
+      end
+    end
+    #Profile    
+    @agents.each_with_index do |agent, index|
+      unless agent.nil?
         if @profile_flag
-          @output_file.puts "Inaccurate profiling" if index == 0
-          @output_file.puts agent.display_time
+          buffer += "Inaccurate profiling\n" if index == 0
+          buffer += agent.display_time + "\n"
         end
       end
     end
