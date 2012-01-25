@@ -91,20 +91,20 @@ class Agent
   def initialize
     @analyzeTime = 0
     @reportTime = 0
-	@total = 0
+    @total = 0
   end
   def analyze(word)
     Agent.api_not_implemented(self)
   end
   def super_analyze(word)
-	@total += 1
-	analyze(word)
+    @total += 1
+    analyze(word)
   end
   def report
     Agent.api_not_implemented(self)
   end
   def super_report
-	report
+    report
   end
   def profile_analyze(word)
     start = Time.now
@@ -133,19 +133,30 @@ end
 class WordFrequencyAgent < Agent
   attr_accessor :words
   def initialize
-	super
+    super
     @words = Hash.new(0)
   end
   def analyze(word)
     @words[word] += 1
   end
   def report
-    #total = @words.values.each_value.inject(:+)
-    unique = @words.keys.length
-    @words = Hash[@words.sort_by { |k, v| -v }]
-    output = @words.first($top.to_i)
+    unique = @words.length
+    output = []
+    while (@words.length > 0 && output.length < $top.to_i)
+      max_value = 0
+      max_key = nil
+      @words.each do |key, value|
+        if value > max_value
+          max_value = value
+          max_key = key
+        end
+      end
+      @words.delete(max_key)
+      output << [max_key, max_value]
+    end
+    @words = nil
     output.each do |array|
-      array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
+      array << (((array[1].to_f/@total)*100).round(4).to_s + ' %')
     end
     table = Ruport::Data::Table.new({
         :data => output,
@@ -164,7 +175,7 @@ end
 class BaseWordFrequencyAgent < Agent
   attr_accessor :words
   def initialize
-	super
+    super
     @words = Hash.new(0)
   end
   def analyze(word)
@@ -172,8 +183,20 @@ class BaseWordFrequencyAgent < Agent
     @words[word] += 1 if word.length >= 3
   end
   def report
-    @words = Hash[@words.sort_by { |k, v| -v }]
-    output = @words.first($top.to_i)
+    output = []
+    while (@words.length > 0 && output.length < $top)
+      max_value = 0
+      max_key = nil
+      @words.each do |key, value|
+        if value > max_value
+          max_value = value
+          max_key = key
+        end
+      end
+      @words.delete(max_key)
+      output << [max_key, max_value]
+    end
+    @words = nil
     output.each do |array|
       array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
     end
@@ -181,7 +204,7 @@ class BaseWordFrequencyAgent < Agent
         :data => output,
         :column_names => ['Word', 'Count', 'Of total']
       })
-      "Base word (len>=3) frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
+    "Base word (len>=3) frequency, sorted by count, top " + $top.to_s + "\n" + table.to_s
   end
 end
 
@@ -192,7 +215,7 @@ end
 class LengthFrequencyAgent < Agent
   attr_accessor :lengths
   def initialize
-	super
+    super
     @lengths = Hash.new(0)
   end
   def analyze(word)
@@ -200,6 +223,7 @@ class LengthFrequencyAgent < Agent
   end
   def report
     output = Hash[@lengths.sort].to_a
+    @lengths = nil
     output.each do |array|
       array << ((array[1].to_f/@total)*100).round(4).to_s + ' %'
     end
@@ -218,7 +242,7 @@ end
 class CharsetFrequencyAgent < Agent
   attr_accessor :charsets, :results
   def initialize
-	super
+    super
     @charsets = Hash[
       :'lower' => Hash[:pattern => /^[a-z]+$/, :characters => 26],
       :'upper' => Hash[:pattern => /^[A-Z]+$/, :characters => 26],
@@ -250,6 +274,7 @@ class CharsetFrequencyAgent < Agent
     @results.each do |charset, count|
       output << [charset, count, ((count.to_f/@total)*100).round(4).to_s + ' %', count.to_f/@charsets[charset][:characters]]
     end
+    @results = nil
     table = Ruport::Data::Table.new({
         :data => output,
         :column_names => ['Charset', 'Count', 'Of total', 'Count/keyspace']
@@ -265,7 +290,7 @@ end
 #
 class HashcatMaskFrequencyAgent < Agent
   def initialize
-	super
+    super
     @results = Hash.new(0)
     @otherCount = 0
   end
@@ -300,6 +325,7 @@ class HashcatMaskFrequencyAgent < Agent
       end
       output << [realmask, count, ((count.to_f/@total)*100).round(4).to_s + ' %', count.to_f/keyspace.to_f]
     end
+    @results = nil
     table = Ruport::Data::Table.new({
         :data => output,
         :column_names => ['Mask', 'Count', 'Of total', 'Count/keyspace']
@@ -318,7 +344,7 @@ end
 class SymbolFrequencyAgent < Agent
   attr_accessor :symbols
   def initialize
-	super
+    super
     @symbols = Hash.new(0)
   end
   def analyze(word)
@@ -345,7 +371,7 @@ end
 class CharsetPositionAgent < Agent
   attr_accessor :result
   def initialize
-	super
+    super
     @results = {
       :l => Hash.new(0),
       :u => Hash.new(0),
@@ -388,14 +414,15 @@ class CharsetPositionAgent < Agent
     sum_m2 = @results[:l][-2]+@results[:u][-2]+@results[:d][-2]+@results[:s][-2]
     sum_m1 = @results[:l][-1]+@results[:u][-1]+@results[:d][-1]+@results[:s][-1]
     table_f = Ruport::Data::Table.new({
-      :data => [
-        ['lower', ((@results[:l][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:l][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:l][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:l][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:l][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:l][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
-        ['upper', ((@results[:u][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:u][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:u][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:u][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:u][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:u][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
-        ['digits', ((@results[:d][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:d][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:d][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:d][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:d][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:d][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
-        ['symbols', ((@results[:s][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:s][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:s][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:s][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:s][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:s][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
-      ],
-      :column_names => ['Charset\Index', '0 (first char)', 1, 2, -3, -2, '-1 (last char)']
-    })
+        :data => [
+          ['lower', ((@results[:l][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:l][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:l][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:l][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:l][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:l][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+          ['upper', ((@results[:u][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:u][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:u][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:u][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:u][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:u][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+          ['digits', ((@results[:d][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:d][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:d][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:d][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:d][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:d][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+          ['symbols', ((@results[:s][0].to_f/sum_0)*100).round(4).to_s+' %', ((@results[:s][1].to_f/sum_1)*100).round(4).to_s+' %', ((@results[:s][2].to_f/sum_2)*100).round(4).to_s+' %', ((@results[:s][-3].to_f/sum_m3)*100).round(4).to_s+' %', ((@results[:s][-2].to_f/sum_m2)*100).round(4).to_s+' %', ((@results[:s][-1].to_f/sum_m1)*100).round(4).to_s+' %'],
+        ],
+        :column_names => ['Charset\Index', '0 (first char)', 1, 2, -3, -2, '-1 (last char)']
+      })
+    @results = nil
     "Charset distribution of characters in beginning and end of words (len>=6)\n" + table_f.to_s
   end
 end
@@ -429,7 +456,7 @@ class Application
   attr_accessor :profile_flag
 
   def initialize
-	@output_file = STDOUT
+    @output_file = STDOUT
     @profile_flag = false
     if RUBY_VERSION != '1.9.3'
       puts 'Warning: This software has only been tested on Ruby 1.9.3'
@@ -452,7 +479,7 @@ class Application
       ['--include', '-i', GetoptLong::REQUIRED_ARGUMENT],
       ['--exclude', '-e', GetoptLong::REQUIRED_ARGUMENT],
       ['--profile', '-p', GetoptLong::NO_ARGUMENT],
-	  ['--outfile', '-o', GetoptLong::REQUIRED_ARGUMENT]
+      ['--outfile', '-o', GetoptLong::REQUIRED_ARGUMENT]
     )
     begin
       opts.each do |opt, arg|
@@ -474,8 +501,8 @@ class Application
           end
         when '--profile'
           @profile_flag = true
-		when '--outfile'
-			@output_file = File.new(arg, "w")
+        when '--outfile'
+          @output_file = File.new(arg, "w")
         end
       end
       $top ||= 10
@@ -508,50 +535,41 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
       puts (1+key).to_s + ' = ' + value.class.to_s
     end
   end
-
+  
   def run
-    #Analyzing
     filename = ARGV.shift
-    f = File.open(filename, 'r:UTF-8')
-    progress = ProgressBar.new('Analyzing', f.size)
-    f.each_line do |line|
-      progress.inc(line.bytesize)
-      @agents.each do |agent|
-        unless agent.nil?
+    buffer = "\n\npasspal "+PASSPAL_VERSION+" report (www.thepasswordproject.com)\n\n"
+    @agents.each_with_index do |agent, index|
+      unless agent.nil?
+        f = File.open(filename, 'r:UTF-8')
+        progress = ProgressBar.new('Analysis #' + (index+1).to_s + '/' + @agents.length.to_s, f.size)
+        f.each_line do |line|
+          progress.inc(line.bytesize)
+          #Analyze
           if @profile_flag
             agent.profile_analyze(line.chomp)
           else 
-              agent.super_analyze(line.chomp)
+            agent.super_analyze(line.chomp)
           end
         end
-      end
-    end
-    progress.finish
-    #Reporting
-    buffer = "\n\npasspal "+PASSPAL_VERSION+" report (www.thepasswordproject.com)\n\n"
-    progress = ProgressBar.new('Reporting', @agents.size)
-    @agents.each do |agent|
-      unless agent.nil?
+        progress.finish
+        #Report
+        progress = ProgressBar.new('Report #' + (index+1).to_s + '/' + @agents.length.to_s, 1)
         if @profile_flag
           string = agent.profile_report
         else
           string = agent.super_report
         end
         buffer += string + "\n\n" unless string.nil?
-        progress.inc
-      end
-    end
-    progress.finish
-    @output_file.puts buffer
-    #Profiling
-    if @profile_flag
-      @output_file.puts "Inaccurate profiling"
-      @agents.each do |agent|
-        unless agent.nil?
+        progress.finish
+        #Profile
+        if @profile_flag
+          @output_file.puts "Inaccurate profiling" if index == 0
           @output_file.puts agent.display_time
         end
       end
     end
+    @output_file.puts buffer
   end
 end
 
