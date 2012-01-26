@@ -11,19 +11,20 @@
 # 5.2 LengthFrequencyAgent class
 # 5.3 CharsetFrequencyAgent class
 # 5.4 HashcatMaskFrequencyAgent class
-# 5.5 SymbolFrequencyAgent class
-# 5.6 CharsetPositionAgent class
-# 5.7 YourAgent class
+# 5.5 CharsetPositionAgent class
+# 5.6 CharsetPositionAgent
+# 5.7 CharacterFrequencyAgent
+# 5.8 SymbolFrequencyAgent class
+# 5.9 YourAgent class
 # 6. Application class
 
-PASSPAL_VERSION = '0.3'
+PASSPAL_VERSION = '0.4'
 
 
 #
 # 1. Load libraries
 #
 require 'getoptlong'
-#require 'ruby-prof'
 
 begin
   require 'progressbar'
@@ -339,34 +340,7 @@ end
 
 
 #
-# 5.6 SymbolFrequencyAgent
-#
-class SymbolFrequencyAgent < Agent
-  attr_accessor :symbols
-  def initialize
-    super
-    @symbols = Hash.new(0)
-  end
-  def analyze(word)
-    m = word.scan(Regexp.new('([\p{Punct} ])'.force_encoding('utf-8'), Regexp::FIXEDENCODING))
-    if m.length > 0
-      m.each do |symbol|
-        @symbols[symbol[0]] += 1
-      end
-    end
-  end
-  def report
-    table = Ruport::Data::Table.new({
-        :data => @symbols,
-        :column_names => %w[Symbol Count]
-      })
-    "Symbol frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s
-  end
-end
-
-
-#
-# 5.7 CharsetPositionAgent
+# 5.6 CharsetPositionAgent
 #
 class CharsetPositionAgent < Agent
   attr_accessor :result
@@ -429,7 +403,83 @@ end
 
 
 #
-# 5.8 YourAgent
+# 5.7 CharacterFrequencyAgent
+#
+class CharacterFrequencyAgent < Agent
+  attr_accessor :words
+  def initialize
+    super
+    @chars = Hash.new(0)
+    @charCount = 0
+  end
+  def analyze(word)
+    @charCount += word.length
+    word.each_char do |char|
+      @chars[char] += 1  
+    end
+  end
+  def report
+    unique = @chars.length
+    output = []
+    charset_string = ''
+    while (@chars.length > 0 && (output.length < $top.to_i || output.length < 50))
+      max_value = 0
+      max_key = nil
+      @chars.each do |key, value|
+        if value > max_value
+          max_value = value
+          max_key = key
+        end
+      end
+      @chars.delete(max_key)
+      charset_string += max_key
+      output << [max_key, max_value]
+    end
+    @chars = nil
+    output.each do |array|
+      array << (((array[1].to_f/@charCount)*100).round(4).to_s + ' %')
+    end
+    table = Ruport::Data::Table.new({
+        :data => output,
+        :column_names => ['Character', 'Count', 'Of total']
+      })
+    "Total characters: \t" + @charCount.to_s +
+      "\nUnique characters: \t" + unique.to_s +
+      "\nTop 50 characters: \t" + '' + charset_string +
+      "\n\nCharacter frequency, sorted by count, top " + $top.to_s + "\n" + table.sub_table(0...$top.to_i).to_s
+  end
+end
+
+
+#
+# 5.8 SymbolFrequencyAgent
+#
+class SymbolFrequencyAgent < Agent
+  attr_accessor :symbols
+  def initialize
+    super
+    @symbols = Hash.new(0)
+  end
+  def analyze(word)
+    m = word.scan(Regexp.new('([\p{Punct} ])'.force_encoding('utf-8'), Regexp::FIXEDENCODING))
+    if m.length > 0
+      m.each do |symbol|
+        @symbols[symbol[0]] += 1
+      end
+    end
+  end
+  def report
+    table = Ruport::Data::Table.new({
+        :data => @symbols,
+        :column_names => %w[Symbol Count]
+      })
+    "Symbol frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s
+  end
+end
+
+
+#
+# 5.9 YourAgent
 #
 =begin
 class YourAgent < Agent
@@ -468,8 +518,9 @@ class Application
       LengthFrequencyAgent.new,
       CharsetFrequencyAgent.new,
       HashcatMaskFrequencyAgent.new,
-      SymbolFrequencyAgent.new,
       CharsetPositionAgent.new,
+      CharacterFrequencyAgent.new,
+      SymbolFrequencyAgent.new,
       #YourAgent.new,
     ]
     @agents = @possibleAgents
