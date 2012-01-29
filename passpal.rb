@@ -107,20 +107,6 @@ class Agent
   def super_report
     report
   end
-  def profile_analyze(word)
-    start = Time.now
-    r = super_analyze(word)
-    stop = Time.now
-    @analyzeTime += (stop.to_f - start.to_f)
-    r
-  end
-  def profile_report
-    start = Time.now
-    r = super_report
-    stop = Time.now
-    @reportTime += (stop.to_f - start.to_f)
-    r
-  end
   def display_time
     self.class.to_s + " - Analyzing: " + @analyzeTime.round(4).to_s + "s Reporting: " + @reportTime.round(4).to_s + 's'
   end
@@ -563,11 +549,9 @@ end
 class Application
 
   attr_accessor :agents
-  attr_accessor :profile_flag
 
   def initialize
     @output_file = STDOUT
-    @profile_flag = false
     if RUBY_VERSION != '1.9.3'
       puts 'Warning: This software has only been tested on Ruby 1.9.3'
       puts
@@ -589,7 +573,6 @@ class Application
       ['--top', '-t', GetoptLong::REQUIRED_ARGUMENT],
       ['--include', '-i', GetoptLong::REQUIRED_ARGUMENT],
       ['--exclude', '-e', GetoptLong::REQUIRED_ARGUMENT],
-      ['--profile', '-p', GetoptLong::NO_ARGUMENT],
       ['--outfile', '-o', GetoptLong::REQUIRED_ARGUMENT]
     )
     begin
@@ -610,8 +593,6 @@ class Application
           arg.split(/,/).each do |i|
             @agents[i.to_i-1] = nil
           end
-        when '--profile'
-          @profile_flag = true
         when '--outfile'
           @output_file = File.new(arg, "w")
         end
@@ -636,7 +617,6 @@ Usage on Linux:   ./passpal.rb [switches] filename [> outfile.txt]
 --top \t\t\t Show top X results. Defaults to 10. Some reports are always shown in full. Example: --top 20
 --include STRING \t Run these modules, separate with comma. Example: --include 1,3,5
 --exclude STRING \t Run all modules except these, separate with comma. Example: --exclude 6
---profile \t\t Pretty inaccurate profiling, but should give you an idea what the relative time cost of the modules are
 --outfile filename \t Output to this file
 filename \t\t The file to analyze. Must be UTF-8 encoded.
 
@@ -657,31 +637,14 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
         f.each_line do |line|
           progress.inc(line.bytesize)
           #Analyze
-          if @profile_flag
-            agent.profile_analyze(line.chomp)
-          else 
-            agent.super_analyze(line.chomp)
-          end
+          agent.super_analyze(line.chomp)
         end
         progress.finish
         #Report
         progress = ProgressBar.new('  Report #' + (index+1).to_s + '/' + @agents.length.to_s, 1)
-        if @profile_flag
-          string = agent.profile_report
-        else
-          string = agent.super_report
-        end
+        string = agent.super_report
         buffer += string + "\n\n" unless string.nil?
         progress.finish
-      end
-    end
-    #Profile    
-    @agents.each_with_index do |agent, index|
-      unless agent.nil?
-        if @profile_flag
-          buffer += "Inaccurate profiling\n" if index == 0
-          buffer += agent.display_time + "\n"
-        end
       end
     end
     @output_file.puts buffer
