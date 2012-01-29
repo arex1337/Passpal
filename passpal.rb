@@ -8,12 +8,12 @@
 # 4. Agent class
 # 5. Agents
 # 5.1 WordFrequencyAgent class
-# 5.2 LengthFrequencyAgent class
-# 5.3 CharsetFrequencyAgent class
-# 5.4 HashcatMaskFrequencyAgent class
-# 5.5 CharsetPositionAgent class
-# 5.6 CharsetPositionAgent
-# 5.7 CharacterFrequencyAgent
+# 5.2 BaseWordFrequencyAgent class
+# 5.3 LengthFrequencyAgent class
+# 5.4 CharsetFrequencyAgent class
+# 5.5 HashcatMaskFrequencyAgent class
+# 5.6 CharsetPositionAgent class
+# 5.7 CharacterFrequencyAgent class
 # 5.8 SymbolFrequencyAgent class
 # 5.9 YourAgent class
 # 6. Application class
@@ -153,7 +153,7 @@ class WordFrequencyAgent < Agent
         end
       end
       @words.delete(max_key)
-      output << [max_key, max_value]
+      output << [max_key.to_s, max_value]
     end
     @words = nil
     output.each do |array|
@@ -290,6 +290,34 @@ end
 # 5.5 HashcatMaskFrequencyAgent
 #
 class HashcatMaskFrequencyAgent < Agent
+  module LUDS
+    ENCODE = { 'L' => 0, 'U' => 1, 'D' => 2, 'S' => 3 }
+    DECODE = ENCODE.invert
+    def self.encode(str)
+      bytes = str.chars.each_slice(4).map do |a, b = 'L', c = 'L', d = 'L'|
+        (ENCODE[a]<<6) + (ENCODE[b]<<4) + (ENCODE[c]<<2) + ENCODE[d]
+      end
+      chars_in_last = str.length % 4
+      if chars_in_last == 0
+        bytes << 0
+      else
+        bytes[bytes.length-1] = bytes.last & 0b11111100 | chars_in_last
+      end
+      bytes.pack('c*')
+    end
+    def self.decode(str)
+      chars = str.each_byte.flat_map do |byte|
+        [
+          DECODE[byte>>6],
+          DECODE[(byte>>4) & 3],
+          DECODE[(byte>>2) & 3],
+          DECODE[byte & 3]
+        ]
+      end.join
+      chars_to_pop = 4 - str.bytes.to_a.last & 3
+      chars[0..-(chars_to_pop+1)]
+    end
+  end
   def initialize
     super
     @results = Hash.new(0)
@@ -298,7 +326,7 @@ class HashcatMaskFrequencyAgent < Agent
   def analyze(word)
     if Regexp.new('^[a-zA-Z0-9\p{Punct} ]+$'.force_encoding('utf-8'), Regexp::FIXEDENCODING).match(word)
       string = word.gsub(/[A-Z]/, 'U').gsub(/[a-z]/, 'L').gsub(/[0-9]/, 'D').gsub(Regexp.new('[\p{Punct} ]'.force_encoding('utf-8'), Regexp::FIXEDENCODING), 'S')
-      @results[string] += 1
+      @results[LUDS::encode(string).to_sym] += 1
     else
       @otherCount += 1
     end
@@ -306,34 +334,66 @@ class HashcatMaskFrequencyAgent < Agent
   def report
     output = []
     @results.each do |mask, count|
+      mask2 = LUDS::decode(mask)
       keyspace = 1
-      realmask = ''
-      mask.each_char do |char|
+      mask2.each_char do |char|
         case char
         when 'L'
           keyspace *= 26
-          realmask += '?l'
         when 'U'
           keyspace *= 26
-          realmask += '?u'
         when 'D'
           keyspace *= 10
-          realmask += '?d'
         when 'S'
           keyspace *= 33
-          realmask += '?s'
         end
       end
-      output << [realmask, count, ((count.to_f/@total)*100).round(4).to_s + ' %', count.to_f/keyspace.to_f]
+      output << [mask, count, count.to_f/keyspace.to_f]
+    end
+    output_by_count = []
+    output_by_keyspace = []
+    included_count_masks = []
+    included_keyspace_masks = []
+    c = output.length
+    while (c > 0 && (output_by_count.length < $top.to_i || output_by_keyspace.length < $top.to_i))
+      max_count = 0
+      max_count_index = nil
+      max_keyspace = 0.0
+      max_keyspace_index = nil
+      included_count_mask = nil
+      included_keyspace_mask = nil
+      output.each_with_index do |row, index|
+        if row[1] > max_count && included_count_masks.find_index(row[0]).nil?
+          max_count = row[1]
+          max_count_index = index
+          included_count_mask = row[0]
+        end
+        if row[2] > max_keyspace && included_keyspace_masks.find_index(row[0]).nil?
+          max_keyspace = row[2]
+          max_keyspace_index = index
+          included_keyspace_mask = row[0]
+        end
+      end
+      row = output[max_count_index]
+      output_by_count << [LUDS::decode(row[0]).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
+      row = output[max_keyspace_index]
+      output_by_keyspace << [LUDS::decode(row[0]).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
+      included_count_masks << included_count_mask
+      included_keyspace_masks << included_keyspace_mask
+      c -= 1
     end
     @results = nil
     table = Ruport::Data::Table.new({
-        :data => output,
+        :data => output_by_count,
         :column_names => ['Mask', 'Count', 'Of total', 'Count/keyspace']
       })
-    "Hashcat mask frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).sub_table(0...$top.to_i).to_s +
+    table2 = Ruport::Data::Table.new({
+        :data => output_by_keyspace,
+        :column_names => ['Mask', 'Count', 'Of total', 'Count/keyspace']
+      })
+    "Hashcat mask frequency, sorted by count, top " + $top.to_s + "\n" + table.sort_rows_by("Count", :order => :descending).to_s +
       "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + ' (' + ((@otherCount.to_f/@total)*100).round(4).to_s + ' %)' +
-      "\n\nHashcat mask frequency, sorted by count/keyspace, top " + $top.to_s + "\n" + table.sort_rows_by("Count/keyspace", :order => :descending).sub_table(0...$top.to_i).to_s +
+      "\n\nHashcat mask frequency, sorted by count/keyspace, top " + $top.to_s + "\n" + table2.sort_rows_by("Count/keyspace", :order => :descending).to_s +
       "Words that didn't match any ?l?u?d?s mask: " + @otherCount.to_s + ' (' + ((@otherCount.to_f/@total)*100).round(4).to_s + ' %)' + "\n"
   end
 end
@@ -628,5 +688,63 @@ filename \t\t The file to analyze. Must be UTF-8 encoded.
   end
 end
 
+
+
 a = Application.new()
 a.run()
+
+
+
+
+
+
+#module LUDS
+#  CHAR_TO_BITS = {
+#    'L' => '00',
+#    'U' => '01',
+#    'D' => '10',
+#    'S' => '11'
+#  }
+#  BITS_TO_CHAR = {
+#    '00' => 'L',
+#    '01' => 'U',
+#    '10' => 'D',
+#    '11' => 'S'
+#  }
+#  def self.decode_bits(bytestring)
+#    string = ''
+#    byte_count = 1
+#    last_byte_length = nil
+#    bytestring.each_byte do |byte|
+#      bitstring = "%08b" % byte
+#      (1..(bitstring.length)).step(2) do |i|
+#        if byte_count == 1 and i == 1
+#          last_byte_length = bitstring[i-1, 2].to_i(2)
+#        elsif byte_count != bytestring.size || last_byte_length == 0 || i/2 >= 4-last_byte_length
+#          string += BITS_TO_CHAR[bitstring[i-1, 2]]
+#        end
+#      end
+#      byte_count += 1
+#    end
+#    string
+#  end
+#  def self.encode_string(string)
+#    bitstring = "%02b" % ((string.length+1) % 4)
+#    string.each_char do |char|
+#      bitstring += CHAR_TO_BITS[char]
+#    end
+#    bytestring = ''
+#    (1..(bitstring.length)).step(8) do |i|
+#      bytestring << bitstring[i-1, 8].to_i(2)
+#    end
+#    bytestring
+#  end
+#end
+#
+#p LUDS.decode_bits(LUDS.encode_string('LUD'))
+#p LUDS.decode_bits(LUDS.encode_string('LUDS'))
+#p LUDS.decode_bits(LUDS.encode_string('LUDSL'))
+#p LUDS.decode_bits(LUDS.encode_string('LUDSLUD'))
+#p LUDS.decode_bits(LUDS.encode_string('LUDSLUDS'))
+#p LUDS.decode_bits(LUDS.encode_string('LUDSLUDSL'))
+
