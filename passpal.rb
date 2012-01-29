@@ -334,7 +334,7 @@ class HashcatMaskFrequencyAgent < Agent
   def report
     output = []
     @results.each do |mask, count|
-      mask2 = LUDS::decode(mask)
+      mask2 = LUDS::decode(mask.to_s)
       keyspace = 1
       mask2.each_char do |char|
         case char
@@ -375,9 +375,9 @@ class HashcatMaskFrequencyAgent < Agent
         end
       end
       row = output[max_count_index]
-      output_by_count << [LUDS::decode(row[0]).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
+      output_by_count << [LUDS::decode(row[0].to_s).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
       row = output[max_keyspace_index]
-      output_by_keyspace << [LUDS::decode(row[0]).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
+      output_by_keyspace << [LUDS::decode(row[0].to_s).to_s.gsub(/L/, '?l').gsub(/U/, '?u').gsub(/D/, '?d').gsub(/S/, '?s'), row[1], ((row[1].to_f/@total)*100).round(4).to_s + ' %', row[2]]
       included_count_masks << included_count_mask
       included_keyspace_masks << included_keyspace_mask
       c -= 1
