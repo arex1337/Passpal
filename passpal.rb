@@ -311,7 +311,7 @@ class HashcatMaskFrequencyAgent < Agent
   end
   def analyze(word)
     if Regexp.new('^[a-zA-Z0-9\p{Punct} ]+$'.force_encoding('utf-8'), Regexp::FIXEDENCODING).match(word)
-      word.tr!('A-Za-z0-9'+'!"#$%&\'()*+,\\-./:;<=>?@[]^_`{|}~ ', 'U'*26+'L'*26+'D'*10+'S'*33)
+      word = word.gsub(/[A-Z]/, 'U').gsub(/[a-z]/, 'L').gsub(/[0-9]/, 'D').gsub(Regexp.new('[\p{Punct} ]'.force_encoding('utf-8'), Regexp::FIXEDENCODING), 'S')
       @results[LUDS::encode(word).to_sym] += 1
     else
       @otherCount += 1
