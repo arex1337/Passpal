@@ -171,7 +171,7 @@ class BaseWordFrequencyAgent < Agent
   end
   def report
     output = []
-    while (@words.length > 0 && output.length < $top)
+    while (@words.length > 0 && output.length < $top.to_i)
       max_value = 0
       max_key = nil
       @words.each do |key, value|
