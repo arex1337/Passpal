@@ -491,7 +491,7 @@ class CharacterFrequencyAgent < Agent
       })
     "Total characters: \t" + @charCount.to_s +
       "\nUnique characters: \t" + unique.to_s +
-      "\nTop 50 characters: \t" + '' + charset_string +
+      "\nTop 50 characters: \t" + '' + charset_string[0..49] +
       "\n\nCharacter frequency, sorted by count, top " + $top.to_s + "\n" + table.sub_table(0...$top.to_i).to_s
   end
 end
