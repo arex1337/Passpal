@@ -468,7 +468,7 @@ class CharacterFrequencyAgent < Agent
     unique = @chars.length
     output = []
     charset_string = ''
-    while (@chars.length > 0 && (output.length < $top.to_i || output.length < 50))
+    while (@chars.length > 0 && (output.length < $top.to_i && output.length < 50))
       max_value = 0
       max_key = nil
       @chars.each do |key, value|
